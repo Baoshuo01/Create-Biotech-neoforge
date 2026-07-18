@@ -1,0 +1,8 @@
+{
+  "render_type": "minecraft:cutout_mipped",
+  "parent": "create_biotech:block/phantomport/block",
+  "textures": {
+    "2": "create_biotech:block/phantomport/phantomport_on",
+    "particle": "create_biotech:block/phantomport/phantomport_on"
+  }
+}

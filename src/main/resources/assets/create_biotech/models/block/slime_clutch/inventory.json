@@ -1,0 +1,7 @@
+{
+  "parent": "create:block/clutch/item",
+  "textures": {
+    "0": "create_biotech:block/slime_clutch_off",
+    "particle": "create_biotech:block/slime_clutch_off"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "type": "create_biotech:squid_printer",
+  "ingredients": [
+    {
+      "item": "minecraft:book"
+    },
+    {
+      "type": "neoforge:single",
+      "amount": 50,
+      "fluid": "minecraft:water"
+    }
+  ],
+  "results": [
+    {
+      "id": "create_biotech:enchantment_book_copy"
+    }
+  ],
+  "processing_time": 20
+}

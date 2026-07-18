@@ -1,0 +1,364 @@
+package com.nobodiiiii.createbiotech.content.cardboardbox;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+
+import com.nobodiiiii.createbiotech.CreateBiotech;
+import com.simibubi.create.content.logistics.box.PackageItem;
+
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.SpawnEggItem;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.items.ItemStackHandler;
+
+public class CapturedEntityBoxHelper {
+	private static final String CAPTURED_ENTITY_TAG = "CapturedEntity";
+	private static final String CAPTURED_ENTITY_DESC_ID_TAG = "CapturedEntityDescId";
+	private static final String CAPTURED_ENTITY_HEALTH_TAG = "CapturedEntityHealth";
+	private static final String DATA_ROOT = CreateBiotech.MOD_ID;
+	private static final String AI_DISABLED_BY_MOD_TAG = "AiDisabledByMod";
+	private static final String NO_AI_TAG = "NoAI";
+	private static final String NEOFORGE_DATA_TAG = "NeoForgeData";
+	private static final String LEGACY_FORGE_DATA_TAG = "ForgeData";
+
+	private CapturedEntityBoxHelper() {}
+
+	public static void markAiDisabledByMod(Entity entity) {
+		if (entity == null)
+			return;
+		CompoundTag persistentData = entity.getPersistentData();
+		CompoundTag data = persistentData.contains(DATA_ROOT, Tag.TAG_COMPOUND)
+			? persistentData.getCompound(DATA_ROOT) : new CompoundTag();
+		data.putBoolean(AI_DISABLED_BY_MOD_TAG, true);
+		persistentData.put(DATA_ROOT, data);
+	}
+
+	public static void unmarkAiDisabledByMod(Entity entity) {
+		if (entity == null)
+			return;
+		CompoundTag persistentData = entity.getPersistentData();
+		if (!persistentData.contains(DATA_ROOT, Tag.TAG_COMPOUND))
+			return;
+		CompoundTag data = persistentData.getCompound(DATA_ROOT);
+		data.remove(AI_DISABLED_BY_MOD_TAG);
+		if (data.isEmpty())
+			persistentData.remove(DATA_ROOT);
+		else
+			persistentData.put(DATA_ROOT, data);
+	}
+
+	public static boolean isAiDisabledByMod(Entity entity) {
+		if (entity == null)
+			return false;
+		CompoundTag persistentData = entity.getPersistentData();
+		if (!persistentData.contains(DATA_ROOT, Tag.TAG_COMPOUND))
+			return false;
+		return persistentData.getCompound(DATA_ROOT)
+			.getBoolean(AI_DISABLED_BY_MOD_TAG);
+	}
+
+	public static void appendHoverText(ItemStack stack, List<Component> tooltipComponents) {
+		appendAddressTooltip(stack, tooltipComponents);
+		appendContentsTooltip(stack, tooltipComponents);
+	}
+
+	public static ItemStack createDisplayStack(ItemStack stack, EntityType<?> entityType) {
+		ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
+		if (entityId == null)
+			return stack;
+
+		CompoundTag entityData = new CompoundTag();
+		entityData.putString("id", entityId.toString());
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			tag.put(CAPTURED_ENTITY_TAG, entityData);
+			tag.putString(CAPTURED_ENTITY_DESC_ID_TAG, entityType.getDescriptionId());
+		});
+		return stack;
+	}
+
+	public static boolean captureEntity(ItemStack stack, LivingEntity target) {
+		if (hasCapturedEntity(stack))
+			return false;
+
+		CompoundTag entityData = new CompoundTag();
+		target.saveWithoutId(entityData);
+
+		ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(target.getType());
+		if (entityId == null)
+			return false;
+
+		entityData.putString("id", entityId.toString());
+		restoreAiInSavedEntityData(entityData);
+
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, stackTag -> {
+			stackTag.put(CAPTURED_ENTITY_TAG, entityData);
+			stackTag.putString(CAPTURED_ENTITY_DESC_ID_TAG, target.getType().getDescriptionId());
+			stackTag.putFloat(CAPTURED_ENTITY_HEALTH_TAG, target.getHealth());
+		});
+		return true;
+	}
+
+	public static boolean captureEntityFromPlayerStack(ItemStack stack, Player player, LivingEntity target) {
+		if (stack.getCount() <= 1)
+			return captureEntity(stack, target);
+
+		ItemStack filledBox = stack.copyWithCount(1);
+		if (!captureEntity(filledBox, target))
+			return false;
+
+		stack.shrink(1);
+		if (!player.getInventory().add(filledBox))
+			player.drop(filledBox, false);
+		return true;
+	}
+
+	private static void restoreAiInSavedEntityData(CompoundTag entityData) {
+		if (restoreAiInPersistentData(entityData, NEOFORGE_DATA_TAG)
+			|| restoreAiInPersistentData(entityData, LEGACY_FORGE_DATA_TAG))
+			entityData.remove(NO_AI_TAG);
+	}
+
+	private static boolean restoreAiInPersistentData(CompoundTag entityData, String persistentDataTag) {
+		if (!entityData.contains(persistentDataTag, Tag.TAG_COMPOUND))
+			return false;
+
+		CompoundTag persistentData = entityData.getCompound(persistentDataTag);
+		if (!persistentData.contains(DATA_ROOT, Tag.TAG_COMPOUND))
+			return false;
+
+		CompoundTag modData = persistentData.getCompound(DATA_ROOT);
+		if (!modData.getBoolean(AI_DISABLED_BY_MOD_TAG))
+			return false;
+
+		modData.remove(AI_DISABLED_BY_MOD_TAG);
+		if (modData.isEmpty())
+			persistentData.remove(DATA_ROOT);
+		else
+			persistentData.put(DATA_ROOT, modData);
+		if (persistentData.isEmpty())
+			entityData.remove(persistentDataTag);
+		else
+			entityData.put(persistentDataTag, persistentData);
+		return true;
+	}
+
+	public static boolean releaseCapturedEntity(UseOnContext context) {
+		ItemStack stack = context.getItemInHand();
+		Level level = context.getLevel();
+		Entity entity = createCapturedEntity(stack, level);
+		if (entity == null)
+			return false;
+
+		CompoundTag stackTag = getCustomData(stack);
+
+		BlockPos clickedPos = context.getClickedPos();
+		Direction face = context.getClickedFace();
+		BlockState clickedState = level.getBlockState(clickedPos);
+		BlockPos spawnPos = clickedState.getCollisionShape(level, clickedPos).isEmpty()
+			? clickedPos : clickedPos.relative(face);
+
+		entity.setPos(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5);
+		if (entity instanceof LivingEntity living && stackTag.contains(CAPTURED_ENTITY_HEALTH_TAG, Tag.TAG_ANY_NUMERIC))
+			living.setHealth(Math.min(living.getMaxHealth(), stackTag.getFloat(CAPTURED_ENTITY_HEALTH_TAG)));
+
+		if (!level.addFreshEntity(entity))
+			return false;
+
+		clearCapturedEntity(stack);
+		return true;
+	}
+
+	public static boolean releaseCapturedEntity(ItemStack stack, Level level, Vec3 spawnPos, Vec3 motion) {
+		Entity entity = createCapturedEntity(stack, level);
+		if (entity == null)
+			return false;
+
+		entity.moveTo(spawnPos.x, spawnPos.y, spawnPos.z, entity.getYRot(), entity.getXRot());
+		entity.setDeltaMovement(motion);
+		entity.fallDistance = 0;
+		if (!level.addFreshEntity(entity))
+			return false;
+
+		clearCapturedEntity(stack);
+		return true;
+	}
+
+	public static boolean containsEntityType(ItemStack stack, EntityType<?> entityType) {
+		CompoundTag entityData = getCapturedEntityData(stack);
+		if (entityData == null)
+			return false;
+
+		ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
+		return entityId != null && entityId.toString()
+			.equals(entityData.getString("id"));
+	}
+
+	public static Entity createCapturedEntity(ItemStack stack, Level level) {
+		CompoundTag entityData = getCapturedEntityData(stack);
+		if (entityData == null)
+			return null;
+
+		Entity entity = EntityType.loadEntityRecursive(entityData.copy(), level, Function.identity());
+		if (entity == null)
+			return null;
+
+		CompoundTag stackTag = getCustomData(stack);
+		if (entity instanceof LivingEntity living
+			&& stackTag.contains(CAPTURED_ENTITY_HEALTH_TAG, Tag.TAG_ANY_NUMERIC))
+			living.setHealth(Math.min(living.getMaxHealth(), stackTag.getFloat(CAPTURED_ENTITY_HEALTH_TAG)));
+
+		return entity;
+	}
+
+	public static void clearCapturedEntity(ItemStack stack) {
+		CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+			tag.remove(CAPTURED_ENTITY_TAG);
+			tag.remove(CAPTURED_ENTITY_DESC_ID_TAG);
+			tag.remove(CAPTURED_ENTITY_HEALTH_TAG);
+		});
+	}
+
+	public static boolean hasCapturedEntity(ItemStack stack) {
+		return getCustomData(stack).contains(CAPTURED_ENTITY_TAG, Tag.TAG_COMPOUND);
+	}
+
+	public static ItemStackHandler applyVirtualSelfFallbackContents(ItemStack box, ItemStackHandler contents) {
+		if (!CapturedEntityBoxItem.isBox(box) || hasAnyPackageContents(contents))
+			return contents;
+
+		contents.setStackInSlot(0, box.copyWithCount(1));
+		return contents;
+	}
+
+	public static ItemStackHandler getVisiblePackageContents(ItemStack box) {
+		if (!PackageItem.isPackage(box))
+			return new ItemStackHandler(PackageItem.SLOTS);
+		ItemStackHandler contents = readPackageContentsWithoutMutation(box);
+		if (!hasOnlyVirtualSelfFallback(box, contents))
+			return contents;
+		return new ItemStackHandler(PackageItem.SLOTS);
+	}
+
+	private static ItemStackHandler readPackageContentsWithoutMutation(ItemStack box) {
+		return applyVirtualSelfFallbackContents(box, PackageItem.getContents(box));
+	}
+
+	private static CompoundTag getCapturedEntityData(ItemStack stack) {
+		CompoundTag tag = getCustomData(stack);
+		if (!tag.contains(CAPTURED_ENTITY_TAG, Tag.TAG_COMPOUND))
+			return null;
+		return tag.getCompound(CAPTURED_ENTITY_TAG);
+	}
+
+	private static CompoundTag getCustomData(ItemStack stack) {
+		return stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+	}
+
+	private static boolean hasAnyPackageContents(ItemStackHandler contents) {
+		for (int slot = 0; slot < contents.getSlots(); slot++)
+			if (!contents.getStackInSlot(slot).isEmpty())
+				return true;
+		return false;
+	}
+
+	private static boolean hasOnlyVirtualSelfFallback(ItemStack box, ItemStackHandler contents) {
+		if (!CapturedEntityBoxItem.isBox(box))
+			return false;
+
+		ItemStack normalizedBox = box.copyWithCount(1);
+		int nonEmptyStacks = 0;
+		for (int slot = 0; slot < contents.getSlots(); slot++) {
+			ItemStack stack = contents.getStackInSlot(slot);
+			if (stack.isEmpty())
+				continue;
+			if (!ItemStack.isSameItemSameComponents(normalizedBox, stack.copyWithCount(1)))
+				return false;
+			nonEmptyStacks++;
+		}
+
+		return nonEmptyStacks == 1;
+	}
+
+	private static void appendAddressTooltip(ItemStack stack, List<Component> tooltipComponents) {
+		String address = PackageItem.getAddress(stack);
+		if (address.isBlank())
+			return;
+
+		tooltipComponents.add(Component.literal("\u2192 " + address)
+			.withStyle(ChatFormatting.GOLD));
+	}
+
+	private static void appendContentsTooltip(ItemStack stack, List<Component> tooltipComponents) {
+		List<TooltipEntry> entries = new ArrayList<>();
+		collectPackageEntries(stack, entries);
+		collectCapturedEntityEntry(stack, entries);
+
+		int visibleNames = 0;
+		int skippedNames = 0;
+		for (TooltipEntry entry : entries) {
+			if (visibleNames > 2) {
+				skippedNames++;
+				continue;
+			}
+
+			visibleNames++;
+			tooltipComponents.add(entry.toTooltipLine());
+		}
+
+		if (skippedNames > 0)
+			tooltipComponents.add(Component.translatable("container.shulkerBox.more", skippedNames)
+				.withStyle(ChatFormatting.ITALIC));
+	}
+
+	private static void collectPackageEntries(ItemStack stack, List<TooltipEntry> entries) {
+		ItemStackHandler contents = getVisiblePackageContents(stack);
+		for (int slot = 0; slot < contents.getSlots(); slot++) {
+			ItemStack contentStack = contents.getStackInSlot(slot);
+			if (contentStack.isEmpty())
+				continue;
+			if (contentStack.getItem() instanceof SpawnEggItem)
+				continue;
+
+			entries.add(new TooltipEntry(contentStack.getHoverName(), contentStack.getCount()));
+		}
+	}
+
+	private static void collectCapturedEntityEntry(ItemStack stack, List<TooltipEntry> entries) {
+		CompoundTag tag = getCustomData(stack);
+		if (!tag.contains(CAPTURED_ENTITY_DESC_ID_TAG, Tag.TAG_STRING))
+			return;
+
+		String entityDescId = tag.getString(CAPTURED_ENTITY_DESC_ID_TAG);
+		if (entityDescId.isEmpty())
+			return;
+
+		entries.add(new TooltipEntry(Component.translatable(entityDescId), 1));
+	}
+
+	private record TooltipEntry(Component name, int count) {
+		private Component toTooltipLine() {
+			return name.copy()
+				.append(" x")
+				.append(String.valueOf(count))
+				.withStyle(ChatFormatting.GRAY);
+		}
+	}
+}
