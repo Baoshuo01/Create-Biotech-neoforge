@@ -1,0 +1,7 @@
+{
+  "render_type": "minecraft:cutout_mipped",
+  "textures": {
+    "particle": "create_biotech:block/power_belt/base"
+  },
+  "elements": []
+}

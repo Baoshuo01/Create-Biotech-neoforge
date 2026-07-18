@@ -1,0 +1,45 @@
+package com.nobodiiiii.createbiotech.registry;
+
+import com.nobodiiiii.createbiotech.CreateBiotech;
+import com.nobodiiiii.createbiotech.content.creeperblastchamber.CreeperBlastChamberHighPressureRecipe;
+import com.nobodiiiii.createbiotech.content.squidprinter.SquidPrinterRecipe;
+
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.crafting.RecipeSerializer;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.DeferredHolder;
+
+public class CBRecipeTypes {
+	private static final DeferredRegister<RecipeSerializer<?>> RECIPE_SERIALIZERS =
+		DeferredRegister.create(Registries.RECIPE_SERIALIZER, CreateBiotech.MOD_ID);
+	private static final DeferredRegister<RecipeType<?>> RECIPE_TYPES =
+		DeferredRegister.create(Registries.RECIPE_TYPE, CreateBiotech.MOD_ID);
+
+	public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<CreeperBlastChamberHighPressureRecipe>>
+		CREEPER_BLAST_CHAMBER_HIGH_PRESSURE_SERIALIZER =
+			RECIPE_SERIALIZERS.register("creeper_blast_chamber_high_pressure",
+				CreeperBlastChamberHighPressureRecipe.Serializer::new);
+
+	public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<SquidPrinterRecipe>> SQUID_PRINTER_SERIALIZER =
+		RECIPE_SERIALIZERS.register("squid_printer",
+			SquidPrinterRecipe.Serializer::new);
+
+	public static final DeferredHolder<RecipeType<?>, RecipeType<CreeperBlastChamberHighPressureRecipe>>
+		CREEPER_BLAST_CHAMBER_HIGH_PRESSURE_TYPE =
+			RECIPE_TYPES.register("creeper_blast_chamber_high_pressure",
+				() -> RecipeType.simple(CreateBiotech.asResource("creeper_blast_chamber_high_pressure")));
+
+	public static final DeferredHolder<RecipeType<?>, RecipeType<SquidPrinterRecipe>> SQUID_PRINTER_TYPE =
+		RECIPE_TYPES.register("squid_printer",
+			() -> RecipeType.simple(CreateBiotech.asResource("squid_printer")));
+
+	private CBRecipeTypes() {}
+
+	public static void register(IEventBus modEventBus) {
+		CBIngredients.register(modEventBus);
+		RECIPE_SERIALIZERS.register(modEventBus);
+		RECIPE_TYPES.register(modEventBus);
+	}
+}

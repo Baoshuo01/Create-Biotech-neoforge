@@ -1,0 +1,78 @@
+package com.nobodiiiii.createbiotech.content.squidprinter;
+
+import com.mojang.serialization.MapCodec;
+import com.nobodiiiii.createbiotech.registry.CBBlockEntityTypes;
+import com.simibubi.create.AllShapes;
+import com.simibubi.create.content.equipment.wrench.IWrenchable;
+import com.simibubi.create.foundation.block.IBE;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+
+public class SquidPrinterBlock extends Block implements IWrenchable, IBE<SquidPrinterBlockEntity> {
+
+	private static final MapCodec<SquidPrinterBlock> CODEC = simpleCodec(SquidPrinterBlock::new);
+
+	public SquidPrinterBlock(Properties properties) {
+		super(properties);
+	}
+
+	@Override
+	protected MapCodec<? extends SquidPrinterBlock> codec() {
+		return CODEC;
+	}
+
+	@Override
+	public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+		return AllShapes.SPOUT;
+	}
+
+	@Override
+	protected boolean isPathfindable(BlockState state, PathComputationType type) {
+		return false;
+	}
+
+	@Override
+	public boolean hasAnalogOutputSignal(BlockState state) {
+		return true;
+	}
+
+	@Override
+	public int getAnalogOutputSignal(BlockState blockState, Level worldIn, BlockPos pos) {
+		return getBlockEntityOptional(worldIn, pos)
+			.map(SquidPrinterBlockEntity::getComparatorOutput)
+			.orElse(0);
+	}
+
+	@Override
+	public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+		super.setPlacedBy(level, pos, state, placer, stack);
+		if (level.isClientSide)
+			return;
+		withBlockEntityDo(level, pos, be -> be.setAdvancementOwner(placer));
+	}
+
+	@Override
+	public Class<SquidPrinterBlockEntity> getBlockEntityClass() {
+		return SquidPrinterBlockEntity.class;
+	}
+
+	@Override
+	public BlockEntityType<? extends SquidPrinterBlockEntity> getBlockEntityType() {
+		return CBBlockEntityTypes.SQUID_PRINTER.get();
+	}
+
+	@Override
+	public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean isMoving) {
+		IBE.onRemove(state, level, pos, newState);
+	}
+}

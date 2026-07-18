@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.yision.phantom.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "create_biotech.refmap.json",
+  "mixins": [
+    "BeltBlockEntityMixin",
+    "BeltBlockMixin",
+    "BeltInventoryAccessor",
+    "BeltInventoryMixin",
+    "ItemHandlerBeltSegmentMixin",
+    "PackagerBlockEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
